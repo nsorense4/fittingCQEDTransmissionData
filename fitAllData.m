@@ -1,0 +1,237 @@
+clear; clc; close all;
+
+% create a table to store all the data. Each sample (size, type (hole, no hole), sample) 
+% should have data for the fits (Qi, Qt, K), the error (uncertainty), ...
+
+sampleIndex = 0:23; % index zero corresponds to the small samples on the side. 
+sampleSize = [3.6 3.9 4.2 4.4 4.7 5 5.15 5.3 5.45 5.6 5.75 5.9 6.05 6.21 6.36];
+
+numDevices = length(sampleIndex);
+numSizes = length(sampleSize);
+numUniqueDevices = numDevices*numSizes;
+
+deviceData(numDevices*numSizes) = struct('diameter', [], 'index', [], ...
+    'type', '', 'filenames', []);
+
+for i = 1:numSizes
+    for j = 1:numDevices
+        deviceData(numDevices*(i-1)+j).diameter = sampleSize(i);
+        deviceData(numDevices*(i-1)+j).index = sampleIndex(j);
+        if ~mod(sampleIndex(j),2)
+            deviceData(numDevices*(i-1)+j).type = {'disc'};
+        else
+            deviceData(numDevices*(i-1)+j).type = {'toroid'};
+        end
+    end
+end
+   
+% sweep through all data files and assign them to the appropriate device
+dataDir = 'C:\Users\nicho\Documents\gitProjects\lab-analysis-software\barclay-lab\data\transmissionData\DNV_B14_QG3\postCleaning\sweepsForAnalysis\';
+files = dir(fullfile(dataDir, '*.mat'));
+addpath(dataDir)
+
+
+% if file contains background -> parse diameter and index
+backgroundFiles(1).name = {'placeholder'};
+numBackgroundFiles = 0;
+for i = 1:numel({files.name})
+    if contains(files(i).name, 'background')
+        numBackgroundFiles = numBackgroundFiles + 1;
+        backgroundFiles(numBackgroundFiles).name = files(i).name;
+    else
+        splitFileName = split(files(i).name, {'_', '-'});
+        size = str2double(splitFileName{1}(1:end-2));
+        index = str2double(splitFileName{2});
+
+% add file to the struct for the device
+        deviceData([deviceData.diameter] == size & [deviceData.index] == index).filenames = [deviceData([deviceData.diameter] == size & [deviceData.index] == index).filenames {files(i).name}];
+    end
+end
+
+% loop through all background files and extract information
+numBackgroundFiles = length(backgroundFiles);
+backgroundFiles(1).wlMediannm = [];
+backgroundFiles(1).laserPowermW = [];
+backgroundFiles(1).laserCurrentmA = [];
+backgroundFiles(1).laserPolarization = [];
+backgroundFiles(1).laser = {};
+for i = 1:numBackgroundFiles
+    filename = backgroundFiles(i).name;
+        if contains(filename, 'telecom')
+            backgroundFiles(i).wlMediannm = 1550;
+            backgroundFiles(i).laser = 'Santec';
+        elseif contains(filename, '1040')
+            backgroundFiles(i).wlMediannm = 1050;
+            backgroundFiles(i).laser = 'New Focus';
+        else
+            disp(filename + " does not specify the laser.")
+        end
+% determine the laser power or current
+        if contains(filename, 'mW')
+            filenameSplit = split(filename, {'mW'});
+            filenameSplit = split(filenameSplit(1), '_');
+            powermW = str2double(filenameSplit(end));
+            backgroundFiles(i).laserPowermW = powermW;
+            backgroundFiles(i).laserCurrentmA = -1;
+        elseif contains(filename, 'mA')
+            filenameSplit = split(filename, {'mA'});
+            filenameSplit = split(filenameSplit(1), '_');
+            currentmA = str2double(filenameSplit(end));
+            backgroundFiles(i).laserCurrentmA = currentmA;
+            backgroundFiles(i).laserPowermW = -1;
+        else
+            disp(filename + " does not specify the current or power.")
+        end
+% determine the polarization
+        if contains(filename, 'P1')
+            backgroundFiles(i).laserPolarization = 1;
+        elseif contains(filename, 'P2')
+            backgroundFiles(i).laserPolarization = 2;
+        elseif contains(filename, 'P3')
+            backgroundFiles(i).laserPolarization = 3;
+        else
+            backgroundFiles(i).laserPolarization = -1;
+        end
+end
+
+% loop through all structure rows and extract the exp info
+deviceData(1).wlMediannm = [];
+deviceData(1).laserPowermW = [];
+deviceData(1).laserCurrentmA = [];
+deviceData(1).laserPolarization = [];
+deviceData(1).laser = {};
+deviceData(1).sweepType = {};
+deviceData(1).backgroundFile = {};
+for i = 1:numUniqueDevices
+    numFiles = length(deviceData(i).filenames);
+    for j = 1:numFiles
+        filename = deviceData(i).filenames{j};
+% determine the laser and median wavelength
+        if contains(filename, 'telecom')
+            deviceData(i).wlMediannm(j) = 1550;
+            deviceData(i).laser{j} = 'Santec';
+        elseif contains(filename, '1040')
+            deviceData(i).wlMediannm(j) = 1050;
+            deviceData(i).laser{j} = 'New Focus';
+        else
+            disp(filename + " does not specify the laser.")
+        end
+% determine the laser power or current
+        if contains(filename, 'mW')
+            filenameSplit = split(filename, {'mW'});
+            filenameSplit = split(filenameSplit(1), '_');
+            powermW = str2double(filenameSplit(end));
+            deviceData(i).laserPowermW(j) = powermW;
+        elseif contains(filename, 'mA')
+            filenameSplit = split(filename, {'mA'});
+            filenameSplit = split(filenameSplit(1), '_');
+            currentmA = str2double(filenameSplit(end));
+            deviceData(i).laserCurrentmA(j) = currentmA;
+        else
+            disp(filename + " does not specify the current or power.")
+        end
+% determine the sweep type
+        if contains(filename, 'sweep')
+            deviceData(i).sweepType{j} = 'DC sweep';
+        elseif contains(filename, 'piezo')
+            deviceData(i).sweepType{j} = 'piezo sweep';
+        else
+            disp(filename + " does not specify the sweep type.")
+        end
+% determine the polarization
+        if contains(filename, 'P1')
+            deviceData(i).laserPolarization(j) = 1;
+        elseif contains(filename, 'P2')
+            deviceData(i).laserPolarization(j) = 2;
+        elseif contains(filename, 'P3')
+            deviceData(i).laserPolarization(j) = 3;
+        else
+            deviceData(i).laserPolarization(j) = -1;
+        end
+% set the relevant background files
+        if contains(filename, 'telecom')
+            deviceData(i).backgroundFile{j} = backgroundFiles([backgroundFiles.wlMediannm] == 1550);
+        elseif contains(filename, '1040')
+% mathc polarization and current
+            deviceData(i).backgroundFile{j} = backgroundFiles([backgroundFiles.laserCurrentmA] == deviceData(i).laserCurrentmA(j) & [backgroundFiles.laserPolarization] == deviceData(i).laserPolarization(j));
+        end
+    end
+end
+
+% loop through all structure rows and extract the resonance information
+deviceData(1).resonances = {};
+useBackground = true;
+numTotalFiles = length([deviceData.filenames]);
+numTestedDevices = 0;
+for i = 1:numUniqueDevices
+    if iscell(deviceData(i).filenames)
+        numTestedDevices = numTestedDevices + 1;
+    end
+end
+currentNumAnalyzedDevices = 0;
+for i = 1:numUniqueDevices
+    numFiles = length(deviceData(i).filenames);
+    for j = 1:numFiles
+        if j == 1
+            currentNumAnalyzedDevices = currentNumAnalyzedDevices + 1;
+        end
+% load all data for the current file
+        if deviceData(i).wlMediannm(j) == 1050
+            backgroundData = load(deviceData(i).backgroundFile{j}.name).scanData;
+            transData = load(deviceData(i).filenames{j}).scanData;
+            useBackground = true;
+            % continue
+        elseif deviceData(i).wlMediannm(j) == 1550
+            backgroundData = load(deviceData(i).backgroundFile{j}.name);
+            transData = load(deviceData(i).filenames{j});
+            useBackground = true;
+        else
+            disp("Error loading file data.")
+        end
+% normalize data by the background
+        [transData.W, transData.T] = removeNan(transData.W, transData.T);
+        if useBackground == true
+            [backgroundData.W, backgroundData.T] = removeNan(backgroundData.W, backgroundData.T);
+            interpBackgroundData.T = interp1(backgroundData.W, backgroundData.T, transData.W);
+        end
+
+        normData = {};
+        normData.W = transData.W;
+        if useBackground == true
+            normData.T = transData.T./interpBackgroundData.T;
+            [normData.W, normData.T] = removeNan(normData.W, normData.T);
+        else
+            disp('Not normalizing using background.')
+            normData.T = transData.T./max(transData.T);
+        end
+% filter out noise
+        if deviceData(i).wlMediannm(j) == 1550
+            normData.T = medfilt1(normData.T,20);
+        elseif deviceData(i).wlMediannm(j) == 1050
+            normData.T = medfilt1(normData.T,5);
+        end
+        
+% ensure normalization works
+        if max(normData.T) > 1
+            normData.T = normData.T./max(normData.T);
+        end
+% data for 1050 is very noisy (FP effect in the fiber or something)
+        if deviceData(i).wlMediannm(j) == 1550
+            [paramNames, params, resnorm, fitType] = fittingBroadSweeps(normData.W, normData.T, ...
+                struct('direction', 0, 'plotFit', false, 'dispBool', false,'contrastLimit', 0.03, 'checkDoubletBool', true, 'livePlot', 0, 'filename', deviceData(i).filenames{j}));
+        elseif deviceData(i).wlMediannm(j) == 1050
+            [paramNames, params, resnorm, fitType] = fittingBroadSweeps(normData.W, normData.T, ...
+                struct('direction', 0, 'plotFit', true, 'dispBool', false,'checkDoubletBool', true, 'livePlot', 1, ...
+                 'contrastLimit', 0.1,'maxPeakWidth', 0.8, 'minPeakWidth', 0.005,'contrastWidthRatioLimit', -1, ...
+                 'minPeakDifference', 0.5, 'filename', deviceData(i).filenames{j}));
+        end
+
+        deviceData(i).resonances{j} = struct('paramNames', {paramNames}, 'params',params, 'resnorm', resnorm, 'fitType', {fitType});
+        progress = (currentNumAnalyzedDevices - 1 + j/numFiles)/numTestedDevices * 100;
+        clc; disp('progress: ' + string(progress) + '%')
+    end
+end
+
+
+
+
