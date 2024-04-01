@@ -237,7 +237,7 @@ for i = 1:numUniqueDevices
 % data for 1050 is very noisy (FP effect in the fiber or something)
             if deviceData(i).wlMediannm(j) == 1550
                 [paramNames, params, resnorm, fitType] = fittingBroadSweeps(normData.W, normData.T, ...
-                    struct('direction', 0, 'plotFit', false, 'dispBool', false,'contrastLimit', 0.03, 'checkDoubletBool', true, 'livePlot', 0, 'filename', deviceData(i).filenames{j}));
+                    struct('direction', 0, 'plotFit', true, 'dispBool', false,'contrastLimit', 0.03, 'checkDoubletBool', true, 'livePlot', 0, 'filename', deviceData(i).filenames{j}));
             elseif deviceData(i).wlMediannm(j) == 1050
                 [paramNames, params, resnorm, fitType] = fittingBroadSweeps(normData.W, normData.T, ...
                     struct('direction', 0, 'plotFit', true, 'dispBool', false,'checkDoubletBool', true, 'livePlot', 0, ...
@@ -253,10 +253,8 @@ for i = 1:numUniqueDevices
 % resonances manually
             response = questdlg('Are the fits good? If no, you can manually fit the peaks.', ...
                                 '', ...
-                                'Yes','No','Skip','Yes');
-            if strcmpi(response, "Skip")
-                break
-            elseif strcmpi(response, "No")
+                                'Yes','No','Yes');
+            if strcmpi(response, "No")
                 continue
             end
             deviceData(i).resonances{j} = struct('paramNames', {paramNames}, 'params',params, 'resnorm', resnorm, 'fitType', {fitType});

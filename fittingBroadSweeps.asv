@@ -1,4 +1,4 @@
-function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, ...
+function [paramNames, params, resnorm, fitType] = fittingBroadSweeps(xDataIn, ...
                                                 yDataIn, ...
                                                 options)
 %%FitMultiplePeaks Attempts to fit multiple peaks
@@ -242,7 +242,7 @@ function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, .
         for j= 1:iterations
             
             rescaleFun = @(param,W) feval(fitFun,param,xDataPeak,scaleVec);
-            [param, resnorm] = lsqcurvefit(rescaleFun,param,xDataPeak,fit,[],[],opts);   
+            [param, resnorm(i)] = lsqcurvefit(rescaleFun,param,xDataPeak,fit,[],[],opts);   
             fit=feval(fitFun,param,xDataPeak,scaleVec);
     
             if(j==backgroundIterations)
@@ -282,7 +282,6 @@ function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, .
 
         param = param.*scaleVec;
         paramIndex = i + numDoublets;
-        resnorms(paramIndex) = resnorm;
         finalParams(:,paramIndex) = param;
         % disp(param)
         [fit,paramNames]=feval(fitFun,param,xDataPeak);
@@ -305,7 +304,7 @@ function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, .
             else
                 finalParams(:, paramIndex) = paramDoublet(1:3);
                 finalParams(:, paramIndex+1) = paramDoublet(4:6);
-                resnorms(paramIndex+1) = resnormDoublet;
+                resnorm(paramIndex+1) = resnormDoublet;
                 fitType{paramIndex} = 'doublet';
                 fitType{paramIndex+1} = 'doublet';
                 numDoublets = numDoublets + 1;
@@ -314,6 +313,7 @@ function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, .
             fitType{paramIndex} = 'singlet';
         end
         sizeFinalParams = size(finalParams);
+        length(resnorm) - sizeFinalParams(2)
         close all
 
 % plot final fit
@@ -365,7 +365,7 @@ function [paramNames, params, resnorms, fitType] = fittingBroadSweeps(xDataIn, .
     for k = 1:numResonances 
         if eraseBool(numResonances - k + 1) == true & numResonances > 1
             params(:,numResonances - k + 1) = [];
-            resnorms(numResonances - k + 1) = [];
+            resnorm(numResonances - k + 1) = [];
             type{numResonances - k + 1} = [];
         end
     end
